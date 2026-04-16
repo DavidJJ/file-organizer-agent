@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 .progress.json
 receipts_*.csv
+*.egg-info/
