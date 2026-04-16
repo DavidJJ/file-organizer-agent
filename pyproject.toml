@@ -19,8 +19,8 @@ dependencies = [
 [project.scripts]
 organize = "main:main"
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest>=8.0.0",
     "pytest-mock>=3.14.0",
 ]
