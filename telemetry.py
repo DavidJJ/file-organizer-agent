@@ -7,6 +7,11 @@ from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 from opentelemetry.sdk._logs import LoggingHandler
 from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+from opentelemetry import trace
+
+# Module-level tracer — imported by agent.py and tools so they can create spans
+# without each having to call get_tracer() themselves.
+tracer = trace.get_tracer("receipt-organizer")
 
 
 def setup_telemetry() -> None:

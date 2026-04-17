@@ -46,8 +46,7 @@ WHAT IS NOT A RECEIPT — mark these is_receipt: false:
 - Datasheets, specifications, technical documents
 - Marketing materials, catalogues, brochures
 - Warranty cards (without proof of purchase attached)
-- Shipping labels alone (no purchase total — just address and tracking)
-- Any document that does not show a monetary total paid
+- Any document that does not show a monetary total paid unless it is a shipping label. 
 
 CATEGORY DEFINITIONS — choose the single best match:
 - Mortgage: mortgage statements, property tax, home loan payments
@@ -55,12 +54,12 @@ CATEGORY DEFINITIONS — choose the single best match:
 - Insurance: health, car, home, life insurance premiums or claims
 - Groceries: food, beverages, household consumables from any store
 - Travel: flights, hotels, car rentals, ride shares, parking, toll receipts
-- Clothing & Apparel: clothing, shoes, accessories from any retailer (Lee, Nike, Amazon fashion, etc.)
-- Home & Appliances: furniture, appliances, home improvement, garden, tools
-- Electronics & Components: electronic parts, components, microcontrollers, sensors, PCBs, development boards (Mouser, DigiKey, Arrow, Adafruit, SparkFun, etc.)
-- Hobby / Radio Control: RC vehicles, drones, FPV equipment, hobby kits, model stores — use this when the order is specifically RC/drone/FPV focused
+- Clothing or Apparel: clothing, shoes, accessories from any retailer (Lee, Nike, Amazon fashion, etc.)
+- Home and Appliances: furniture, appliances, home improvement, garden, tools
+- Electronics or Components: electronic parts, components, microcontrollers, sensors, PCBs, development boards (Mouser, DigiKey, Arrow, Adafruit, SparkFun, etc.)
+- Hobby: RC vehicles, drones, FPV equipment, hobby kits, model stores — use this when the order is specifically RC/drone/FPV focused
 - Event Tickets: concerts, sports, cinema, theatre, theme parks
-- Shipping & Postage: USPS Click-N-Ship, FedEx, UPS, DHL paid postage receipts that include a total charge
+- Shipping Label: USPS Click-N-Ship, FedEx, UPS, DHL postage receipts
 - Subscription: recurring software, streaming, membership, SaaS services, domain name registrations and renewals (Namecheap, GoDaddy, Google Domains, etc.), hosting plans
 - Other: anything that is clearly a receipt but does not fit the above
 

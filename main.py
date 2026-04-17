@@ -14,7 +14,7 @@ os.environ.setdefault("HF_HUB_OFFLINE", "1")
 from agent import build_agent, classify_file
 from output import CSVWriter
 from scanner import scan_files
-from telemetry import setup_telemetry
+from telemetry import setup_telemetry, tracer
 
 logger = logging.getLogger(__name__)
 
@@ -74,43 +74,73 @@ def main() -> None:
     logger.info(f"Found {total} files to process", extra={"file.count": total})
 
     processed = load_progress()
+    skipped = len([f for f in all_files if str(f) in processed])
     agent_executor = build_agent(args.ollama_url, args.model)
     csv_writer = CSVWriter(str(csv_path))
 
-    for i, file_path in enumerate(all_files, 1):
-        path_str = str(file_path)
+    receipts_found = 0
+    errors = 0
 
-        if path_str in processed:
+    with tracer.start_as_current_span("scan.run") as run_span:
+        run_span.set_attribute("scan.root", args.root)
+        run_span.set_attribute("scan.model", args.model)
+        run_span.set_attribute("scan.total_files", total)
+        run_span.set_attribute("scan.already_processed", skipped)
+        run_span.set_attribute("scan.csv_path", str(csv_path))
+
+        for i, file_path in enumerate(all_files, 1):
+            path_str = str(file_path)
+
+            if path_str in processed:
+                logger.info(
+                    f"[{i}/{total}] Skipping (already processed): {file_path.name}",
+                    extra={"file.path": path_str},
+                )
+                continue
+
             logger.info(
-                f"[{i}/{total}] Skipping (already processed): {file_path.name}",
-                extra={"file.path": path_str},
-            )
-            continue
-
-        logger.info(
-            f"[{i}/{total}] Scanning: {file_path.name}",
-            extra={"file.path": path_str, "file.type": file_path.suffix.lstrip(".")},
-        )
-
-        result = classify_file(agent_executor, file_path)
-
-        if result and result.is_receipt:
-            csv_writer.append_receipt(
-                category=result.category or "Other",
-                original_path=path_str,
-                suggested_path=result.suggested_path
-                or f"~/Documents/Receipts/Other/{file_path.name}",
-                reason=result.reason,
-            )
-            logger.info(
-                f"Receipt found: {result.category}",
-                extra={"file.path": path_str, "receipt.category": result.category},
+                f"[{i}/{total}] Scanning: {file_path.name}",
+                extra={
+                    "file.path": path_str,
+                    "file.type": file_path.suffix.lstrip("."),
+                    "scan.progress": f"{i}/{total}",
+                },
             )
 
-        processed.add(path_str)
-        save_progress(processed)
+            result = classify_file(agent_executor, file_path)
 
-    logger.info(f"Scan complete. Results saved to {csv_path}")
+            if result is None:
+                errors += 1
+            elif result.is_receipt:
+                receipts_found += 1
+                csv_writer.append_receipt(
+                    category=result.category or "Other",
+                    original_path=path_str,
+                    suggested_path=result.suggested_path
+                    or f"~/Documents/Receipts/Other/{file_path.name}",
+                    reason=result.reason,
+                )
+
+            processed.add(path_str)
+            save_progress(processed)
+
+            # Keep running totals current on the span so partial runs are useful
+            run_span.set_attribute("scan.receipts_found", receipts_found)
+            run_span.set_attribute("scan.errors", errors)
+            run_span.set_attribute("scan.files_evaluated", i - skipped)
+
+        run_span.set_attribute("scan.complete", True)
+
+    logger.info(
+        f"Scan complete. {receipts_found} receipts found in {total - skipped} files. "
+        f"Results saved to {csv_path}",
+        extra={
+            "scan.receipts_found": receipts_found,
+            "scan.total_files": total,
+            "scan.errors": errors,
+            "scan.csv_path": str(csv_path),
+        },
+    )
 
 
 if __name__ == "__main__":
