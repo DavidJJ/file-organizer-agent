@@ -47,7 +47,13 @@ def classify_file(
 ) -> Optional[ReceiptClassificationResult]:
     """Run the ReAct agent on a single file. Returns None if the file should be skipped."""
     try:
-        result = agent_executor.invoke({"input": f"Classify this file: {file_path}"})
+        result = agent_executor.invoke({
+            "input": (
+                f"Classify this file.\n"
+                f"Filename: {file_path.name}\n"
+                f"Full path: {file_path}"
+            )
+        })
         output = result.get("output", "")
         parsed = _parse_json_output(output)
         if parsed is None:

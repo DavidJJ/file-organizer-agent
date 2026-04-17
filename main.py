@@ -5,6 +5,12 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+# Prevent HuggingFace Hub from making network calls at runtime.
+# Models are pre-downloaded via `docling-tools models download`.
+# Without this, HF Hub checks for updates on every run and prints
+# unauthenticated request warnings even when the cache is fully populated.
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+
 from agent import build_agent, classify_file
 from output import CSVWriter
 from scanner import scan_files
