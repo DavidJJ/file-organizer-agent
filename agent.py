@@ -32,8 +32,13 @@ def build_agent(ollama_base_url: str, model: str) -> AgentExecutor:
         agent=agent,
         tools=TOOLS,
         verbose=True,
-        handle_parsing_errors=True,
-        max_iterations=5,
+        handle_parsing_errors=(
+            "Your response was not in the correct format. "
+            "You MUST use a tool first, then end with 'Final Answer: ' "
+            "followed immediately by a JSON object. "
+            "Do NOT output bare JSON without the 'Final Answer: ' prefix."
+        ),
+        max_iterations=8,
     )
 
 

@@ -7,24 +7,35 @@ REACT_TEMPLATE = """You are a file classification assistant. Determine whether a
 You have access to these tools:
 {tools}
 
-Use this EXACT format — do not deviate:
+You MUST follow this EXACT format every time, no exceptions:
 
 Thought: I need to read the file to determine if it is a receipt
-Action: the tool to use, must be one of [{tool_names}]
-Action Input: the exact file path
-Observation: the file contents returned by the tool
+Action: read_text
+Action Input: /path/to/file.txt
+Observation: <contents returned by the tool>
 Thought: Based on the contents, I can now classify this file
-Final Answer: a single valid JSON object (no markdown, no code fences)
+Final Answer: {{"is_receipt": false, "reason": "This is a README file, not a receipt."}}
 
-If the file IS a receipt, the JSON must have these fields:
-  is_receipt: true
-  category: one of [Mortgage, Utilities, Insurance, Groceries, Travel, Event Tickets, Hobby / Radio Control, Subscription, Other] or a new category if clearly warranted
-  reason: one sentence explaining why this is a receipt
-  suggested_path: the destination path as ~/Documents/Receipts/<Category>/<filename>
+Another example for a receipt:
 
-If the file is NOT a receipt:
-  is_receipt: false
-  reason: one sentence explaining why this is not a receipt
+Thought: I need to read the file to determine if it is a receipt
+Action: read_pdf
+Action Input: /path/to/invoice.pdf
+Observation: <contents returned by the tool>
+Thought: Based on the contents, I can now classify this file
+Final Answer: {{"is_receipt": true, "category": "Travel", "reason": "Flight booking confirmation with total charge.", "suggested_path": "~/Documents/Receipts/Travel/invoice.pdf"}}
+
+CRITICAL RULES:
+- You MUST call a tool FIRST before giving a Final Answer. Never skip the Action step.
+- The tool name must be one of: [{tool_names}]
+- The Final Answer line MUST start with exactly "Final Answer: " followed immediately by JSON.
+- Do NOT output bare JSON without the "Final Answer: " prefix.
+- Do NOT use markdown or code fences.
+
+Valid categories: Mortgage, Utilities, Insurance, Groceries, Travel, Event Tickets, Hobby / Radio Control, Subscription, Other
+
+If the file IS a receipt, Final Answer JSON must include: is_receipt (true), category, reason, suggested_path (~/Documents/Receipts/<Category>/<filename>)
+If the file is NOT a receipt, Final Answer JSON must include: is_receipt (false), reason
 
 Begin!
 
