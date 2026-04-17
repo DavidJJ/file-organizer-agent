@@ -82,7 +82,7 @@ You MUST follow this EXACT format every time, no exceptions:
 
 Thought: I need to list the directory contents to classify this folder
 Action: list_directory
-Action Input: /path/to/folder
+Action Input: /example/MyProject
 Observation: <contents returned by the tool>
 Thought: Based on the folder name and file names, I can now classify this folder
 Final Answer: {{"skip": false, "reason": "Folder contains a mix of unrelated files."}}
@@ -91,26 +91,31 @@ Another example where we skip:
 
 Thought: I need to list the directory contents to classify this folder
 Action: list_directory
-Action Input: /path/to/B-29
+Action Input: /example/B-29
 Observation: <contents returned by the tool>
 Thought: All files share the B-29 prefix and are technical drawings — this is a project folder.
 Final Answer: {{"skip": true, "reason": "All files are B-29 model aircraft drawings with sequential numbering."}}
+
+Note: In Action Input, always use the EXACT folder path from the Question — not the example paths above.
 
 CRITICAL RULES:
 - You MUST call list_directory FIRST before giving a Final Answer. Never skip the Action step.
 - The tool name must be one of: [{tool_names}]
 - The Final Answer line MUST start with exactly "Final Answer: " followed immediately by JSON.
+- Do NOT output bare JSON without the "Final Answer: " prefix.
 - Do NOT use markdown or code fences.
 
 Skip the folder (skip: true) when ALL of the following are true:
   1. Files share a common naming pattern or project prefix (e.g. "B-29-1828-WingSpars.pdf", "B-29-1829-Fuselage.pdf")
   2. The folder name describes a project, part, component, or snapshot (e.g. "B-29", "9mm-potentiometer.snapshot.5", "arduino-uno-r3")
   3. Files are clearly technical in nature (drawings, 3D models, datasheets, schematics, firmware, build instructions)
+     Note: If even ONE file could be a receipt, invoice, or order confirmation, all skip criteria fail — process the folder.
 
 Process the folder (skip: false) when ANY of the following are true:
   - Files appear unrelated to each other
   - The folder name is generic (Downloads, Documents, misc, temp, files)
   - Any file could plausibly be a receipt, invoice, or financial document
+  - The folder is empty (cannot confirm file types — default to process)
 
 Return ONLY valid JSON:
   {{"skip": true, "reason": "..."}}  or  {{"skip": false, "reason": "..."}}
