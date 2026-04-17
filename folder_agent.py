@@ -63,6 +63,7 @@ def classify_folder(
 
             if parsed is None:
                 span.set_attribute("folder.outcome", "parse_error")
+                span.set_status(StatusCode.ERROR, "Failed to parse folder agent JSON output")
                 logger.warning(
                     "Failed to parse folder agent JSON output, defaulting to process",
                     extra={"folder.path": str(dir_path)},
