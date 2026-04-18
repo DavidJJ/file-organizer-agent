@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Set
 
 from langchain_classic.agents import AgentExecutor
+from langchain_ollama import ChatOllama
 from opentelemetry.trace import StatusCode
 
 from agent import classify_file
@@ -50,7 +51,7 @@ def save_progress(progress: Progress, progress_file: str = PROGRESS_FILE) -> Non
 class DirectoryCoordinator:
     def __init__(
         self,
-        folder_agent: AgentExecutor,
+        folder_agent: ChatOllama,
         file_agent: AgentExecutor,
         csv_writer: CSVWriter,
         progress: Progress,

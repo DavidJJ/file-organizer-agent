@@ -5,17 +5,41 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from langchain_classic.agents import AgentExecutor, create_react_agent
 from langchain_ollama import ChatOllama
 from opentelemetry.trace import StatusCode
 
-from prompts import FOLDER_REACT_PROMPT
 from telemetry import tracer
 from tools.list_directory import list_directory
 
 logger = logging.getLogger(__name__)
 
-FOLDER_TOOLS = [list_directory]
+FOLDER_CLASSIFIER_PROMPT = """You are a directory classifier. You will be given the name and contents of a folder. Decide whether ALL files in it are clearly related to each other and clearly not receipts or financial documents.
+
+Skip the folder (skip: true) when the listing suggests:
+- Files share a common naming pattern or project prefix (e.g. "B-29-1828-WingSpars.pdf", "B-29-1829-Fuselage.pdf")
+- The folder contains files typical of a git repo or software project (README, LICENSE, node_modules, package.json, .git, src/, etc.)
+- The folder contains files typical of a hardware/3D printing/RC component snapshot (e.g. .3mf, .stl, .m3d, .step files)
+- The folder name describes a specific project, part, component, or snapshot
+
+Process the folder (skip: false) when:
+- Files appear unrelated or the folder name is generic (Downloads, Documents, misc, temp)
+- Any file could plausibly be a receipt, invoice, shipping label, or financial document
+- The folder is empty
+
+If any file could plausibly be a receipt or financial document, say so in the reason.
+
+Return ONLY a valid JSON object on a single line. No explanation, no markdown, no code fences.
+
+Examples:
+{{"skip": false, "reason": "Folder contains a mix of unrelated files."}}
+{{"skip": true, "reason": "All files are numbered B-29 aircraft drawings — clearly a build project."}}
+{{"skip": true, "reason": "Contains README, LICENSE, and src/ — this is a git repository."}}
+{{"skip": false, "reason": "Contains invoice.pdf which could be a receipt."}}
+
+Directory listing:
+{listing}
+
+JSON:"""
 
 
 @dataclass
@@ -24,49 +48,44 @@ class FolderClassificationResult:
     reason: str
 
 
-def build_folder_agent(ollama_base_url: str, model: str) -> AgentExecutor:
-    """Construct the LangChain ReAct AgentExecutor for folder classification."""
-    llm = ChatOllama(model=model, base_url=ollama_base_url)
-    agent = create_react_agent(llm, FOLDER_TOOLS, FOLDER_REACT_PROMPT)
-    return AgentExecutor(
-        agent=agent,
-        tools=FOLDER_TOOLS,
-        verbose=True,
-        handle_parsing_errors=(
-            "Your response was not in the correct format. "
-            "You MUST use list_directory first, then end with 'Final Answer: ' "
-            "followed immediately by a JSON object with 'skip' and 'reason' fields."
-        ),
-        max_iterations=4,
-        return_intermediate_steps=True,
-    )
+def build_folder_agent(ollama_base_url: str, model: str) -> ChatOllama:
+    """Construct the LLM used for folder classification."""
+    return ChatOllama(model=model, base_url=ollama_base_url)
 
 
 def classify_folder(
-    agent_executor: AgentExecutor, dir_path: Path
+    llm: ChatOllama, dir_path: Path
 ) -> FolderClassificationResult:
-    """Run the folder classifier on a directory. Returns skip=False (process) on any error."""
+    """Classify a directory: fetch its listing directly, then ask the LLM to decide.
+
+    The listing step is done in Python — not by the LLM — so we never rely on the
+    model following a ReAct tool-call loop. Smaller local models skip Action steps
+    unreliably; this approach is robust regardless of model size.
+
+    Returns skip=False (process) on any error.
+    """
     with tracer.start_as_current_span("folder.classify") as span:
         span.set_attribute("folder.path", str(dir_path))
         span.set_attribute("folder.name", dir_path.name)
 
+        # Step 1: fetch the directory listing directly in Python
+        listing = list_directory.invoke(str(dir_path))
+        span.set_attribute("folder.listing_chars", len(listing))
+
+        # Step 2: ask the LLM to classify based on the listing
         try:
-            result = agent_executor.invoke({
-                "input": f"Classify this folder: {dir_path}"
-            })
+            prompt = FOLDER_CLASSIFIER_PROMPT.format(listing=listing)
+            response = llm.invoke(prompt)
+            output = response.content if hasattr(response, "content") else str(response)
 
-            steps = result.get("intermediate_steps", [])
-            span.set_attribute("agent.iterations", len(steps))
-
-            output = result.get("output", "")
             parsed = _parse_json_output(output)
 
             if parsed is None:
                 span.set_attribute("folder.outcome", "parse_error")
-                span.set_status(StatusCode.ERROR, "Failed to parse folder agent JSON output")
+                span.set_status(StatusCode.ERROR, "Failed to parse folder classifier JSON output")
                 logger.warning(
-                    "Failed to parse folder agent JSON output, defaulting to process",
-                    extra={"folder.path": str(dir_path)},
+                    "Failed to parse folder classifier JSON output, defaulting to process",
+                    extra={"folder.path": str(dir_path), "output": output[:200]},
                 )
                 return FolderClassificationResult(skip=False, reason="Parse error — defaulting to process")
 
@@ -89,14 +108,14 @@ def classify_folder(
             span.set_status(StatusCode.ERROR, str(e))
             span.record_exception(e)
             logger.error(
-                f"Folder agent error: {e}",
+                f"Folder classifier error: {e}",
                 extra={"folder.path": str(dir_path)},
             )
             return FolderClassificationResult(skip=False, reason=f"Error — defaulting to process: {e}")
 
 
 def _parse_json_output(output: str) -> Optional[dict]:
-    """Parse JSON from agent output string, stripping markdown fences if present."""
+    """Parse JSON from LLM output string, stripping markdown fences if present."""
     try:
         return json.loads(output.strip())
     except json.JSONDecodeError:
