@@ -8,11 +8,11 @@ An agentic pipeline that scans your filesystem for receipts and proof-of-purchas
 
 Years of saving receipts to a PC in a variety of folders, naming conventions, and file formats leaves thousands of documents scattered across a filesystem with no consistent structure. Manually sorting them is exactly the kind of tedious, context-heavy work that an LLM agent should be able to handle.
 
-This project is that agent. It crawls a directory tree, reads each document, decides whether it is a receipt, categorizes it, and suggests where it should live — hands-free.
+This project is that agent. It crawls a directory tree, decides at each folder level whether to skip it entirely or process it file-by-file, reads each document, decides whether it is a receipt, categorizes it, and suggests where it should live — hands-free.
 
-It also serves as a **proof-of-concept and evaluation** for three things:
+It also serves as a **proof-of-concept and evaluation** for several things:
 
-- **Agentic LLM pipelines in practice** — building a real ReAct agent with LangChain against a local model, not a toy demo
+- **Multi-agent LLM pipelines in practice** — a coordinator orchestrating two specialized ReAct agents, built with LangChain against a local model
 - **[OpenLIT](https://openlit.io)** — evaluating its LLM observability and tracing capabilities on a real workload
 - **[Docling](https://docling.ai)** — evaluating its document parsing and OCR quality as a replacement for traditional PDF/OCR toolchains
 
@@ -20,34 +20,80 @@ It also serves as a **proof-of-concept and evaluation** for three things:
 
 ## How It Works
 
-The agent follows a [ReAct](https://arxiv.org/abs/2210.03629) (Reasoning + Acting) loop for each file:
+The system uses three cooperating components:
+
+### 1. Directory Coordinator
+The coordinator drives the entire traversal. At each directory level it asks the **Folder Classifier Agent** whether to skip the whole subtree or process it. If a folder is skipped, none of its files or subdirectories are ever visited. If it is processed, direct files go to the **File Classifier Agent** and the coordinator then recurses into each subdirectory.
+
+The scan root (e.g. `~/Downloads`) is always processed — only subdirectories are classified.
+
+### 2. Folder Classifier Agent
+A lightweight ReAct agent that decides — from folder name and child names alone, without reading any file contents — whether a directory is a cohesive project that should be skipped. Skip criteria:
+
+- Files share a naming pattern or project prefix (e.g. `B-29-1828-WingSpars.pdf`, `B-29-1829-Fuselage.pdf`)
+- The folder name describes a project, part, component, or snapshot (e.g. `B-29`, `9mm-potentiometer.snapshot.5`)
+- Files are clearly technical in nature (drawings, 3D models, datasheets, firmware, build instructions)
+
+If even one file could plausibly be a receipt, the folder is processed.
+
+**Why this matters:** Without folder-level classification, a directory containing 40 numbered aircraft drawings would result in 40 individual LLM calls — each potentially misclassified because the model has no context that they are all part of the same build project.
+
+### 3. File Classifier Agent
+A ReAct agent that reads each file's content and classifies it as a receipt or not. For receipts it assigns a category and suggests a destination path. The prompt includes the parent folder name as an explicit field — not buried in the full path — so the LLM can use it as a strong contextual hint.
+
+### Flow
 
 ```
-Thought → Action (read file) → Observation → Thought → Final Answer (JSON)
+main.py
+  └── DirectoryCoordinator
+        ├── [root dir] always process
+        ├── FolderClassifierAgent  ←── list_directory tool
+        │     skip? ──► prune subtree
+        │     process? ──► continue
+        ├── FileClassifierAgent    ←── read_pdf / read_docx / read_text tools
+        │     receipt? ──► append to CSV
+        └── recurse into subdirectories
 ```
 
-1. **Scanner** crawls the root directory and yields `.pdf`, `.docx`, and `.txt` files
-2. **Agent** invokes the appropriate read tool to extract text from the file
-3. **LLM** (running locally via Ollama) classifies the content and assigns a category
-4. **CSV writer** appends confirmed receipts with their suggested destination path
-5. **Progress file** checkpoints processed paths so interrupted runs resume without reprocessing
+### Example traversal
 
 ```
-┌─────────────────────────────────────────────┐
-│               LOCAL MACHINE                 │
-│                                             │
-│  main.py ──► scanner ──► agent ──► tools   │
-│                 │           │         │     │
-│                 │      LangChain    Docling │
-│                 │       ReAct       DOCX   │
-│                 │           │       TXT    │
-│                 │        Ollama            │
-│                 │       llama3.2           │
-│                 │                          │
-│              CSV out ◄── results           │
-│                                            │
-│  Telemetry ──► OpenTelemetry ──► OpenLIT   │
-└─────────────────────────────────────────────┘
+Downloads/                    ← root, always processed
+  B-29/                       ← FolderClassifier: skip (numbered technical drawings)
+    B-29-1828-WingSpars.pdf   ← never visited
+    B-29-1829-Fuselage.pdf    ← never visited
+  9mm-potentiometer.snapshot.5/  ← FolderClassifier: skip (component package)
+    R-0904N-KC.m3d            ← never visited
+  invoices/                   ← FolderClassifier: process (generic folder name)
+    amazon_order.pdf          ← FileClassifier: receipt → Electronics
+    readme.txt                ← FileClassifier: not a receipt
+    project_y/                ← FolderClassifier: skip (related docs)
+      related_y1.doc          ← never visited
+```
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                      LOCAL MACHINE                      │
+│                                                         │
+│  main.py                                                │
+│    └── DirectoryCoordinator (coordinator.py)            │
+│          ├── FolderClassifierAgent (folder_agent.py)    │
+│          │     └── list_directory tool                  │
+│          │           └── Ollama / llama3.2              │
+│          └── FileClassifierAgent (agent.py)             │
+│                └── read_pdf / read_docx / read_text     │
+│                      └── Docling / python-docx          │
+│                            └── Ollama / llama3.2        │
+│                                                         │
+│  output.py ──► receipts_<timestamp>.csv                 │
+│  .progress.json ──► resume checkpoint                   │
+│                                                         │
+│  Telemetry ──► OpenTelemetry ──► OpenLIT                │
+└─────────────────────────────────────────────────────────┘
 ```
 
 All LLM inference, document parsing, and OCR runs locally. No file contents are transmitted to any external service.
@@ -71,7 +117,7 @@ All LLM inference, document parsing, and OCR runs locally. No file contents are 
 
 ## Receipt Categories
 
-The agent classifies each receipt into one of:
+The file classifier assigns each receipt to one of:
 
 | Category | Examples |
 |---|---|
@@ -128,6 +174,13 @@ uv sync
 ollama pull llama3.2
 ```
 
+A larger model improves classification accuracy significantly. `llama3.3` or `mistral-small` are good alternatives if your hardware supports them:
+
+```bash
+ollama pull llama3.3
+uv run python main.py --model llama3.3
+```
+
 ### Start the observability stack
 
 ```bash
@@ -178,7 +231,7 @@ All CLI flags can also be set via environment variables:
 
 ### Resume an interrupted run
 
-Progress is automatically saved to `.progress.json` after each file. Rerunning the same command will skip already-processed files.
+Progress is automatically saved to `.progress.json` after each file or skipped folder. Rerunning the same command will skip already-processed files and already-classified folders.
 
 To start fresh:
 
@@ -195,10 +248,22 @@ All logs, LLM traces, and spans are exported via OpenTelemetry to the local Open
 Open the dashboard at **[http://localhost:3000](http://localhost:3000)** after starting the stack.
 
 You can inspect:
+- Per-folder classification decisions (skip vs. process) with reasons
 - Per-file LLM call latency and token counts
 - Agent reasoning traces (Thought → Action → Observation chains)
 - Error rates and retry counts
 - Full structured logs correlated with traces
+
+### OTel spans
+
+| Span | What it covers |
+|---|---|
+| `scan.run` | The full top-level scan |
+| `directory.process` | Each directory visited by the coordinator |
+| `folder.classify` | Each folder agent LLM call |
+| `file.classify` | Each file agent LLM call |
+| `tool.read_pdf` / `tool.read_docx` / `tool.read_text` | Individual file reads |
+| `tool.list_directory` | Directory listings for the folder agent |
 
 ---
 
@@ -206,16 +271,18 @@ You can inspect:
 
 ```
 .
-├── main.py              # Entry point, CLI, orchestration loop
-├── agent.py             # LangChain ReAct agent and result parsing
-├── prompts.py           # ReAct prompt template with category definitions
-├── scanner.py           # Filesystem walker
+├── main.py              # Entry point, CLI, wires coordinator
+├── coordinator.py       # DirectoryCoordinator — recursive orchestration
+├── folder_agent.py      # FolderClassifierAgent — skip or process?
+├── agent.py             # FileClassifierAgent — receipt classification
+├── prompts.py           # ReAct prompts for both agents
 ├── output.py            # CSV writer
 ├── telemetry.py         # OpenTelemetry + OpenLIT setup
 ├── tools/
-│   ├── read_pdf.py      # Docling-based PDF extraction (text + OCR)
-│   ├── read_docx.py     # python-docx Word document extraction
-│   └── read_text.py     # Plain text file reader
+│   ├── list_directory.py  # Lists folder contents (used by folder agent)
+│   ├── read_pdf.py        # Docling-based PDF extraction (text + OCR)
+│   ├── read_docx.py       # python-docx Word document extraction
+│   └── read_text.py       # Plain text file reader
 ├── tests/               # pytest test suite
 ├── docker-compose.yml   # OpenLIT, ClickHouse, optional Ollama
 ├── start.sh             # Smart startup script (auto-detects host Ollama)
