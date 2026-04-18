@@ -67,7 +67,8 @@ def classify_file(
                     f"Classify this file.\n"
                     f"Filename: {file_path.name}\n"
                     f"Parent folder: {parent_folder}\n"
-                    f"Full path: {file_path}"
+                    f"Full path: {file_path}\n"
+                    f"Use '{file_path}' as the Action Input when calling a tool."
                 )
             })
 

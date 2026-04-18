@@ -12,7 +12,7 @@ You MUST follow this EXACT format every time, no exceptions:
 
 Thought: I need to read the file to determine if it is a receipt
 Action: read_text
-Action Input: /path/to/file.txt
+Action Input: <THE EXACT FULL PATH FROM THE QUESTION — never use example paths>
 Observation: <contents returned by the tool>
 Thought: Based on the contents, I can now classify this file
 Final Answer: {{"is_receipt": false, "reason": "This is a README file, not a receipt."}}
@@ -21,7 +21,7 @@ Another example for a receipt:
 
 Thought: I need to read the file to determine if it is a receipt
 Action: read_pdf
-Action Input: /path/to/invoice.pdf
+Action Input: <THE EXACT FULL PATH FROM THE QUESTION — never use example paths>
 Observation: <contents returned by the tool>
 Thought: Based on the contents, I can now classify this file
 Final Answer: {{"is_receipt": true, "category": "Home & Appliances", "reason": "Costco order confirmation for a GE refrigerator, total $1,395.85.", "suggested_path": "~/Documents/Receipts/Home & Appliances/invoice.pdf"}}
@@ -29,6 +29,7 @@ Final Answer: {{"is_receipt": true, "category": "Home & Appliances", "reason": "
 CRITICAL RULES:
 - You MUST call a tool FIRST before giving a Final Answer. Never skip the Action step.
 - The tool name must be one of: [{tool_names}]
+- For Action Input, use the EXACT full path from the Question. NEVER use a placeholder or example path.
 - The Final Answer line MUST start with exactly "Final Answer: " followed immediately by JSON.
 - Do NOT output bare JSON without the "Final Answer: " prefix.
 - Do NOT use markdown or code fences.
@@ -93,24 +94,14 @@ There does not seem to be any relation between files or folder and there are no 
 The files are likely not related. I should not skip this folder."
 Final Answer: {{"skip": false, "reason": "Folder contains a mix of unrelated files."}}
 
-Example where we skip:
-
-Thought: I need to list the directory contents to classify this folder
-Action: list_directory
-Action Input: /example/B-29
-Observation: <contents returned by the tool>
-Thought: "I have the list of file names and folder names. I can now classify this folder.  
-Many files have B-29 in the name it is likely some sort of project directory."
-Final Answer: {{"skip": true, "reason": "All files have similar naming. Likely related to each other and won't contain a receipt."}}
-
 Another skip example:
 
 Thought: I need to list the directory contents to classify this folder
 Action: list_directory
-Action Input: /example/+High+angles
+Action Input: /example/AProjectFolder
 Observation: <contents returned by the tool>
 Thought: "I have the list of file names and folder names. I can now classify this folder.  
-This has a README, LICENSE, license file or other files commonly seen in git repositories or applications"
+This has a README, LICENSE, license file or other files commonly seen in git repositories or projects"
 Final Answer: {{"skip": true, "reason": "This is likely a git repository project"}}
 
 Another skip example:
@@ -136,6 +127,8 @@ A-12345-f.png, A-12345-q.3mf.
 This is likely a folder of related files and will NOT contain a receipt"
 Final Answer: {{"skip": true, "reason": "This is likely a group of related files for something"}}
 
+----------------------
+
 Note: In Action Input, always use the EXACT folder path from the Question — not the example paths above.
 
 CRITICAL RULES:
@@ -155,6 +148,8 @@ Process the folder (skip: false) when ANY of the following are true:
   - The folder name is generic (Downloads, Documents, misc, temp, files)
   - Any file could plausibly be a receipt, invoice, or financial document
   - The folder is empty (cannot confirm file types — default to process)
+  
+If a file in the folder could plausibly be a receipt, invoice, shipping label or financial document, the reason should say so.
 
 Return ONLY valid JSON:
   {{"skip": true, "reason": "..."}}  or  {{"skip": false, "reason": "..."}}
