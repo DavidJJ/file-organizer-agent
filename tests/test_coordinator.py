@@ -155,8 +155,7 @@ def test_coordinator_ignores_unsupported_extensions(tmp_path):
 
 
 def test_load_progress_returns_empty_when_no_file(tmp_path):
-    with patch("coordinator.PROGRESS_FILE", str(tmp_path / ".progress.json")):
-        progress = load_progress()
+    progress = load_progress(str(tmp_path / ".progress.json"))
     assert len(progress.files) == 0
     assert len(progress.skipped_dirs) == 0
 
@@ -165,8 +164,7 @@ def test_load_progress_backward_compat_with_plain_list(tmp_path):
     progress_file = tmp_path / ".progress.json"
     progress_file.write_text(json.dumps(["/path/to/file.pdf"]))
 
-    with patch("coordinator.PROGRESS_FILE", str(progress_file)):
-        progress = load_progress()
+    progress = load_progress(str(progress_file))
 
     assert "/path/to/file.pdf" in progress.files
     assert len(progress.skipped_dirs) == 0
@@ -179,11 +177,42 @@ def test_load_progress_new_format(tmp_path):
         "skipped_dirs": ["/path/to/B-29"],
     }))
 
-    with patch("coordinator.PROGRESS_FILE", str(progress_file)):
-        progress = load_progress()
+    progress = load_progress(str(progress_file))
 
     assert "/path/to/file.pdf" in progress.files
     assert "/path/to/B-29" in progress.skipped_dirs
+
+
+def test_coordinator_handles_permission_error(tmp_path):
+    folder_agent = MagicMock()
+    file_agent = MagicMock()
+    csv_writer = MagicMock()
+    progress = Progress()
+
+    with patch("coordinator.classify_folder", return_value=FolderClassificationResult(skip=False, reason="mixed")), \
+         patch("coordinator.classify_file") as mock_file, \
+         patch("coordinator.save_progress"), \
+         patch.object(Path, "iterdir", side_effect=PermissionError("access denied")):
+        coord = DirectoryCoordinator(folder_agent, file_agent, csv_writer, progress)
+        coord.process(tmp_path)  # Should not raise
+        mock_file.assert_not_called()
+
+
+def test_coordinator_records_processed_file_in_progress(tmp_path):
+    f = tmp_path / "invoice.pdf"
+    f.write_bytes(b"")
+    folder_agent = MagicMock()
+    file_agent = MagicMock()
+    csv_writer = MagicMock()
+    progress = Progress()
+
+    with patch("coordinator.classify_folder", return_value=FolderClassificationResult(skip=False, reason="mixed")), \
+         patch("coordinator.classify_file", return_value=None), \
+         patch("coordinator.save_progress"):
+        coord = DirectoryCoordinator(folder_agent, file_agent, csv_writer, progress)
+        coord.process(tmp_path)
+
+    assert str(f) in progress.files
 
 
 def test_save_progress_writes_both_sets(tmp_path):
@@ -193,8 +222,7 @@ def test_save_progress_writes_both_sets(tmp_path):
         skipped_dirs={"/path/to/B-29"},
     )
 
-    with patch("coordinator.PROGRESS_FILE", str(progress_file)):
-        save_progress(progress)
+    save_progress(progress, str(progress_file))
 
     data = json.loads(progress_file.read_text())
     assert "/path/to/file.pdf" in data["files"]
