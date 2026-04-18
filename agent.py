@@ -65,6 +65,7 @@ def classify_file(
                 "input": (
                     f"Classify this file.\n"
                     f"Filename: {file_path.name}\n"
+                    f"Parent folder: {file_path.parent.name}\n"
                     f"Full path: {file_path}"
                 )
             })

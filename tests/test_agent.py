@@ -79,3 +79,17 @@ def test_classify_file_returns_none_on_agent_exception():
     result = classify_file(mock_executor, Path("/fake/file.pdf"))
 
     assert result is None
+
+
+def test_classify_file_input_includes_parent_folder():
+    mock_executor = MagicMock()
+    mock_executor.invoke.return_value = {
+        "output": '{"is_receipt": false, "reason": "Not a receipt."}',
+        "intermediate_steps": [],
+    }
+
+    classify_file(mock_executor, Path("/fake/Downloads/ticket.pdf"))
+
+    call_args = mock_executor.invoke.call_args[0][0]
+    assert "Downloads" in call_args["input"]
+    assert "ticket.pdf" in call_args["input"]
