@@ -20,7 +20,7 @@ def setup_telemetry() -> None:
     otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:4318")
 
     # Auto-instruments LangChain traces + sets up OTLP trace/metrics/logs exporters
-    openlit.init(otlp_endpoint=otlp_endpoint)
+    openlit.init(application_name="file_classifier", otlp_endpoint=otlp_endpoint)
 
     # Attach a log exporter to openlit's already-configured LoggerProvider
     logger_provider = get_logger_provider()

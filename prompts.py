@@ -2,7 +2,8 @@ from langchain_core.prompts import PromptTemplate
 
 # ReAct agents require exactly these four input variables in the template:
 # {tools}, {tool_names}, {input}, {agent_scratchpad}
-REACT_TEMPLATE = """You are a file classification assistant. Determine whether a file is a receipt or proof of purchase.
+REACT_TEMPLATE = """
+You are a file classification assistant. Determine whether a file is a receipt or proof of purchase.
 
 You have access to these tools:
 {tools}
@@ -73,28 +74,67 @@ Thought:{agent_scratchpad}"""
 
 REACT_PROMPT = PromptTemplate.from_template(REACT_TEMPLATE)
 
-FOLDER_REACT_TEMPLATE = """You are a directory classifier. Determine whether a folder's files are all clearly related to each other AND clearly not receipts or financial documents.
+FOLDER_REACT_TEMPLATE = """
+You are a directory classifier. Determine whether a folder's files are all clearly related to each other AND clearly not receipts or financial documents.
 
 You have access to these tools:
 {tools}
 
-You MUST follow this EXACT format every time, no exceptions:
+You MUST follow the format in the following examples:
+
+Example where we DO NOT skip:
 
 Thought: I need to list the directory contents to classify this folder
 Action: list_directory
-Action Input: /example/MyProject
+Action Input: /example/ExampleFolder
 Observation: <contents returned by the tool>
-Thought: Based on the folder name and file names, I can now classify this folder
+Thought: "I have the list of file names and folder names. I can now classify this folder.  
+There does not seem to be any relation between files or folder and there are no identifying files like license.txt or README.md.
+The files are likely not related. I should not skip this folder."
 Final Answer: {{"skip": false, "reason": "Folder contains a mix of unrelated files."}}
 
-Another example where we skip:
+Example where we skip:
 
 Thought: I need to list the directory contents to classify this folder
 Action: list_directory
 Action Input: /example/B-29
 Observation: <contents returned by the tool>
-Thought: All files share the B-29 prefix and are technical drawings — this is a project folder.
-Final Answer: {{"skip": true, "reason": "All files are B-29 model aircraft drawings with sequential numbering."}}
+Thought: "I have the list of file names and folder names. I can now classify this folder.  
+Many files have B-29 in the name it is likely some sort of project directory."
+Final Answer: {{"skip": true, "reason": "All files have similar naming. Likely related to each other and won't contain a receipt."}}
+
+Another skip example:
+
+Thought: I need to list the directory contents to classify this folder
+Action: list_directory
+Action Input: /example/+High+angles
+Observation: <contents returned by the tool>
+Thought: "I have the list of file names and folder names. I can now classify this folder.  
+This has a README, LICENSE, license file or other files commonly seen in git repositories or applications"
+Final Answer: {{"skip": true, "reason": "This is likely a git repository project"}}
+
+Another skip example:
+
+Thought: I need to list the directory contents to classify this folder
+Action: list_directory
+Action Input: /example/An Application
+Observation: <contents returned by the tool>
+Thought: "I have the list of file names and folder names. I can now classify this folder.  
+This directory contains file names such as: node_modules, yarn.app. These files commonly found in applications 
+so I should skip this folder."
+Final Answer: {{"skip": true, "reason": "This is likely an application of some sort"}}
+
+Another skip example:
+
+Thought: I need to list the directory contents to classify this folder
+Action: list_directory
+Action Input: /example/AComponent
+Observation: <contents returned by the tool>
+Thought: "I have the list of file names and folder names. I can now classify this folder.  
+Most of the files in this folder share similar names like: 
+A-12345-f.png, A-12345-q.3mf. 
+This is likely a folder of related files and will NOT contain a receipt"
+Final Answer: {{"skip": true, "reason": "This is likely a group of related files for something"}}
 
 Note: In Action Input, always use the EXACT folder path from the Question — not the example paths above.
 
@@ -108,8 +148,7 @@ CRITICAL RULES:
 Skip the folder (skip: true) when ALL of the following are true:
   1. Files share a common naming pattern or project prefix (e.g. "B-29-1828-WingSpars.pdf", "B-29-1829-Fuselage.pdf")
   2. The folder name describes a project, part, component, or snapshot (e.g. "B-29", "9mm-potentiometer.snapshot.5", "arduino-uno-r3")
-  3. Files are clearly technical in nature (drawings, 3D models, datasheets, schematics, firmware, build instructions)
-     Note: If even ONE file could be a receipt, invoice, or order confirmation, all skip criteria fail — process the folder.
+  3. The files and folder names in the folder likely represent an application or git repo. 
 
 Process the folder (skip: false) when ANY of the following are true:
   - Files appear unrelated to each other
