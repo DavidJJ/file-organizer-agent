@@ -13,28 +13,29 @@ from tools.list_directory import list_directory
 
 logger = logging.getLogger(__name__)
 
-FOLDER_CLASSIFIER_PROMPT = """You are a directory classifier. You will be given the name and contents of a folder. Decide whether ALL files in it are clearly related to each other and clearly not receipts or financial documents.
+FOLDER_CLASSIFIER_PROMPT = """You are a directory classifier. You will be given a directory listing. Your job is to output a single JSON object.
 
-Skip the folder (skip: true) when the listing suggests:
-- Files share a common naming pattern or project prefix (e.g. "B-29-1828-WingSpars.pdf", "B-29-1829-Fuselage.pdf")
-- The folder contains files typical of a git repo or software project (README, LICENSE, node_modules, package.json, .git, src/, etc.)
-- The folder contains files typical of a hardware/3D printing/RC component snapshot (e.g. .3mf, .stl, .m3d, .step files)
-- The folder name describes a specific project, part, component, or snapshot
+The JSON object has exactly two fields:
+- "skip": true or false
+- "reason": one sentence explanation
 
-Process the folder (skip: false) when:
-- Files appear unrelated or the folder name is generic (Downloads, Documents, misc, temp)
-- Any file could plausibly be a receipt, invoice, shipping label, or financial document
-- The folder is empty
+Set "skip" to true when this folder should be IGNORED — meaning it clearly does NOT contain receipts and all the files are obviously related to each other (e.g. a build project, git repo, 3D model snapshot, RC aircraft plans, software application).
 
-If any file could plausibly be a receipt or financial document, say so in the reason.
+Set "skip" to false when this folder should be SCANNED for receipts — meaning it might contain receipts, invoices, or financial documents, OR the files are a mixed/unrelated collection.
 
-Return ONLY a valid JSON object on a single line. No explanation, no markdown, no code fences.
+Examples of skip=true folders:
+- A folder named "B-29" containing "B-29-1828-WingSpars.pdf", "B-29-1829-Fuselage.pdf" → all related technical drawings
+- A folder containing README.md, LICENSE, package.json, node_modules/ → software project
+- A folder containing R-0904N-KC.m3d, R-0904N-KC.step, R-0904N-KC.png → 3D model snapshot
 
-Examples:
-{{"skip": false, "reason": "Folder contains a mix of unrelated files."}}
-{{"skip": true, "reason": "All files are numbered B-29 aircraft drawings — clearly a build project."}}
-{{"skip": true, "reason": "Contains README, LICENSE, and src/ — this is a git repository."}}
-{{"skip": false, "reason": "Contains invoice.pdf which could be a receipt."}}
+Examples of skip=false folders:
+- A folder named "Downloads" with a mix of unrelated files → could contain receipts
+- A folder containing "invoice.pdf", "readme.txt" → invoice.pdf could be a receipt
+- An empty folder → cannot confirm, scan it
+
+IMPORTANT: If you believe the folder should be skipped, set "skip" to true. If you believe it should be scanned, set "skip" to false. Do not mix up the values.
+
+Return ONLY valid JSON on a single line. No explanation before or after. No markdown. No code fences.
 
 Directory listing:
 {listing}
@@ -77,6 +78,11 @@ def classify_folder(
             prompt = FOLDER_CLASSIFIER_PROMPT.format(listing=listing)
             response = llm.invoke(prompt)
             output = response.content if hasattr(response, "content") else str(response)
+            span.set_attribute("folder.llm_output", output[:500])
+            logger.debug(
+                f"Folder classifier raw output for {dir_path.name}: {output[:200]}",
+                extra={"folder.path": str(dir_path)},
+            )
 
             parsed = _parse_json_output(output)
 
