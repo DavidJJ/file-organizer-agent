@@ -27,8 +27,8 @@ The coordinator drives the entire traversal. At each directory level it asks the
 
 The scan root (e.g. `~/Downloads`) is always processed — only subdirectories are classified.
 
-### 2. Folder Classifier Agent
-A lightweight ReAct agent that decides — from folder name and child names alone, without reading any file contents — whether a directory is a cohesive project that should be skipped. Skip criteria:
+### 2. Folder Classifier
+A lightweight LLM classifier that decides — from folder name and child names alone, without reading any file contents — whether a directory is a cohesive project that should be skipped. The directory listing is fetched directly in Python and passed to the LLM as context (not via a tool call). Skip criteria:
 
 - Files share a naming pattern or project prefix (e.g. `B-29-1828-WingSpars.pdf`, `B-29-1829-Fuselage.pdf`)
 - The folder name describes a project, part, component, or snapshot (e.g. `B-29`, `9mm-potentiometer.snapshot.5`)
@@ -39,7 +39,7 @@ If even one file could plausibly be a receipt, the folder is processed.
 **Why this matters:** Without folder-level classification, a directory containing 40 numbered aircraft drawings would result in 40 individual LLM calls — each potentially misclassified because the model has no context that they are all part of the same build project.
 
 ### 3. File Classifier Agent
-A ReAct agent that reads each file's content and classifies it as a receipt or not. For receipts it assigns a category and suggests a destination path. The prompt includes the parent folder name as an explicit field — not buried in the full path — so the LLM can use it as a strong contextual hint.
+A LangChain ReAct agent that reads each file's content and classifies it as a receipt or not. For receipts it assigns a category and suggests a destination path. The prompt includes the parent folder name as an explicit field — not buried in the full path — so the LLM can use it as a strong contextual hint.
 
 ### Flow
 
@@ -47,10 +47,10 @@ A ReAct agent that reads each file's content and classifies it as a receipt or n
 main.py
   └── DirectoryCoordinator
         ├── [root dir] always process
-        ├── FolderClassifierAgent  ←── list_directory tool
+        ├── FolderClassifier  ←── list_directory (Python) → direct LLM call
         │     skip? ──► prune subtree
         │     process? ──► continue
-        ├── FileClassifierAgent    ←── read_pdf / read_docx / read_text tools
+        ├── FileClassifierAgent    ←── read_pdf / read_docx / read_text tools (ReAct)
         │     receipt? ──► append to CSV
         └── recurse into subdirectories
 ```
@@ -81,10 +81,10 @@ Downloads/                    ← root, always processed
 │                                                         │
 │  main.py                                                │
 │    └── DirectoryCoordinator (coordinator.py)            │
-│          ├── FolderClassifierAgent (folder_agent.py)    │
-│          │     └── list_directory tool                  │
+│          ├── FolderClassifier (folder_agent.py)         │
+│          │     list_directory (Python) ──► prompt       │
 │          │           └── Ollama / llama3.2              │
-│          └── FileClassifierAgent (agent.py)             │
+│          └── FileClassifierAgent (agent.py) [ReAct]     │
 │                └── read_pdf / read_docx / read_text     │
 │                      └── Docling / python-docx          │
 │                            └── Ollama / llama3.2        │
@@ -104,7 +104,7 @@ All LLM inference, document parsing, and OCR runs locally. No file contents are 
 
 | Layer | Technology | Purpose |
 |---|---|---|
-| **Agent framework** | [LangChain](https://python.langchain.com) (`langchain-classic`) | ReAct agent loop, tool execution |
+| **Agent framework** | [LangChain](https://python.langchain.com) (`langchain-classic`) | ReAct agent loop and tool execution (file classifier); direct LLM call (folder classifier) |
 | **Local LLM** | [Ollama](https://ollama.com) + `llama3.2` | On-device inference, no cloud calls |
 | **Document parsing** | [Docling](https://docling.ai) | PDF text extraction + OCR for scanned docs |
 | **DOCX parsing** | `python-docx` | Word document text extraction |
@@ -131,7 +131,7 @@ The file classifier assigns each receipt to one of:
 | Electronics & Components | Electronic parts, PCBs, sensors, dev boards (Mouser, DigiKey, Adafruit, etc.) |
 | Hobby / Radio Control | RC vehicles, drones, FPV equipment, hobby kits — specifically RC/drone focused |
 | Event Tickets | Concerts, sports, cinema, theatre, theme parks |
-| Shipping & Postage | USPS, FedEx, UPS paid postage receipts with a total charge |
+| Shipping Label | USPS, FedEx, UPS, DHL paid postage receipts |
 | Subscription | Recurring software, streaming, memberships, SaaS, domain registrations/renewals, hosting |
 | Other | Receipts that don't fit the above |
 
@@ -273,9 +273,10 @@ You can inspect:
 .
 ├── main.py              # Entry point, CLI, wires coordinator
 ├── coordinator.py       # DirectoryCoordinator — recursive orchestration
-├── folder_agent.py      # FolderClassifierAgent — skip or process?
-├── agent.py             # FileClassifierAgent — receipt classification
-├── prompts.py           # ReAct prompts for both agents
+├── folder_agent.py      # FolderClassifier — direct LLM call, skip or process?
+├── agent.py             # FileClassifierAgent — ReAct agent, receipt classification
+├── prompts.py           # ReAct prompt for the file classifier agent
+├── scanner.py           # File scanner utility (used in tests)
 ├── output.py            # CSV writer
 ├── telemetry.py         # OpenTelemetry + OpenLIT setup
 ├── tools/
