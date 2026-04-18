@@ -25,13 +25,14 @@ Set "skip" to false when this folder should be SCANNED for receipts — meaning 
 
 Examples of skip=true folders:
 - A folder named "B-29" containing "B-29-1828-WingSpars.pdf", "B-29-1829-Fuselage.pdf" → all related technical drawings
-- A folder containing README.md, LICENSE, package.json, node_modules/ → software project
+- A folder containing README.md, LICENSE, package.json, node_modules/ or other files commonly associated with a git repo or other project.
 - A folder containing R-0904N-KC.m3d, R-0904N-KC.step, R-0904N-KC.png → 3D model snapshot
+- A folder containing files that all have similar names. 
+- An empty folder. Nothing to do so skip it.
 
 Examples of skip=false folders:
-- A folder named "Downloads" with a mix of unrelated files → could contain receipts
-- A folder containing "invoice.pdf", "readme.txt" → invoice.pdf could be a receipt
-- An empty folder → cannot confirm, scan it
+- A folder with a generic name like "Downloads" or "Documents" or "Files" with a mix of unrelated files → could contain receipts
+- A folder containing "invoice.pdf", receipt.txt etc that could be a receipt
 
 IMPORTANT: If you believe the folder should be skipped, set "skip" to true. If you believe it should be scanned, set "skip" to false. Do not mix up the values.
 
