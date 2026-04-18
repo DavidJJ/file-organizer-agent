@@ -302,8 +302,8 @@
         "type": 3
       },
       "seed": 1009,
-      "version": 8,
-      "versionNonce": 1671522568,
+      "version": 9,
+      "versionNonce": 1130843144,
       "isDeleted": false,
       "boundElements": [
         {
@@ -315,7 +315,7 @@
           "type": "arrow"
         }
       ],
-      "updated": 1776549850816,
+      "updated": 1776554119565,
       "link": null,
       "locked": false,
       "index": "a8"
@@ -1461,11 +1461,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1040,
-      "version": 2,
-      "versionNonce": 776988536,
-      "isDeleted": false,
+      "version": 3,
+      "versionNonce": 255086344,
+      "isDeleted": true,
       "boundElements": [],
-      "updated": 1776549496464,
+      "updated": 1776549915444,
       "link": null,
       "locked": false,
       "text": "receipt? → append\nto CSV",
@@ -2076,9 +2076,9 @@
     {
       "id": "a11",
       "type": "arrow",
-      "x": 200,
+      "x": 199.99999999999997,
       "y": 230,
-      "width": 90,
+      "width": 62.53122708316621,
       "height": 605,
       "angle": 0,
       "strokeColor": "#ea580c",
@@ -2094,11 +2094,11 @@
         "type": 2
       },
       "seed": 2011,
-      "version": 2,
-      "versionNonce": 1962010376,
+      "version": 125,
+      "versionNonce": 1699639560,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1776549496464,
+      "updated": 1776554123083,
       "link": null,
       "locked": false,
       "points": [
@@ -2107,31 +2107,17 @@
           0
         ],
         [
-          -90,
+          62.531227083166215,
           0
         ],
         [
-          -90,
+          62.531227083166215,
           605
         ]
       ],
       "lastCommittedPoint": null,
-      "startBinding": {
-        "mode": "orbit",
-        "elementId": "r-coord",
-        "fixedPoint": [
-          0.4923076923076924,
-          0.49230769230769234
-        ]
-      },
-      "endBinding": {
-        "mode": "orbit",
-        "elementId": "r-progress",
-        "fixedPoint": [
-          0.35,
-          0.35
-        ]
-      },
+      "startBinding": null,
+      "endBinding": null,
       "startArrowhead": null,
       "endArrowhead": "arrow",
       "index": "ao"
@@ -2595,8 +2581,8 @@
     {
       "id": "bXsEoNYa2IlDbsI2bmzhd",
       "type": "text",
-      "x": 36.77393336152602,
-      "y": 669.3387762148144,
+      "x": 124.44508449735582,
+      "y": 721.8956533599174,
       "width": 169.11984252929688,
       "height": 25,
       "angle": 0,
@@ -2612,11 +2598,11 @@
       "index": "ax",
       "roundness": null,
       "seed": 1130278152,
-      "version": 179,
-      "versionNonce": 962837368,
+      "version": 315,
+      "versionNonce": 1303119880,
       "isDeleted": false,
       "boundElements": null,
-      "updated": 1776549793873,
+      "updated": 1776554126147,
       "link": null,
       "locked": false,
       "text": "Progress/Skipped",
