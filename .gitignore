@@ -5,3 +5,4 @@ __pycache__/
 .progress.json
 receipts_*.csv
 *.egg-info/
+test_output.txt
