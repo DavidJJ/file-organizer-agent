@@ -93,3 +93,16 @@ def test_classify_file_input_includes_parent_folder():
     call_args = mock_executor.invoke.call_args[0][0]
     assert "Downloads" in call_args["input"]
     assert "ticket.pdf" in call_args["input"]
+
+
+def test_classify_file_input_uses_root_fallback_for_top_level_file():
+    mock_executor = MagicMock()
+    mock_executor.invoke.return_value = {
+        "output": '{"is_receipt": false, "reason": "Not a receipt."}',
+        "intermediate_steps": [],
+    }
+
+    classify_file(mock_executor, Path("/ticket.pdf"))
+
+    call_args = mock_executor.invoke.call_args[0][0]
+    assert "(root)" in call_args["input"]

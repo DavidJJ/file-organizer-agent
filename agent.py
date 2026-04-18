@@ -61,11 +61,12 @@ def classify_file(
             pass
 
         try:
+            parent_folder = file_path.parent.name or "(root)"
             result = agent_executor.invoke({
                 "input": (
                     f"Classify this file.\n"
                     f"Filename: {file_path.name}\n"
-                    f"Parent folder: {file_path.parent.name}\n"
+                    f"Parent folder: {parent_folder}\n"
                     f"Full path: {file_path}"
                 )
             })
