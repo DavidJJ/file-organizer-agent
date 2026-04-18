@@ -14,20 +14,27 @@ from folder_agent import FolderClassificationResult
 
 
 def test_coordinator_skips_folder_when_agent_says_skip(tmp_path):
-    (tmp_path / "file.pdf").write_bytes(b"")
+    # Folder agent is only called on subdirectories, not the root.
+    # Create a subdirectory that the agent will mark as skip.
+    subdir = tmp_path / "project"
+    subdir.mkdir()
+    (subdir / "file.pdf").write_bytes(b"")
     folder_agent = MagicMock()
     file_agent = MagicMock()
     csv_writer = MagicMock()
     progress = Progress()
 
-    with patch("coordinator.classify_folder", return_value=FolderClassificationResult(skip=True, reason="project folder")), \
+    def fake_classify_folder(agent, path):
+        return FolderClassificationResult(skip=True, reason="project folder")
+
+    with patch("coordinator.classify_folder", side_effect=fake_classify_folder), \
          patch("coordinator.classify_file") as mock_file, \
          patch("coordinator.save_progress"):
         coord = DirectoryCoordinator(folder_agent, file_agent, csv_writer, progress)
         coord.process(tmp_path)
         mock_file.assert_not_called()
 
-    assert str(tmp_path) in progress.skipped_dirs
+    assert str(subdir) in progress.skipped_dirs
 
 
 def test_coordinator_processes_files_when_not_skipped(tmp_path):
@@ -89,9 +96,10 @@ def test_coordinator_recurses_into_subdirectories(tmp_path):
         coord = DirectoryCoordinator(folder_agent, file_agent, csv_writer, progress)
         coord.process(tmp_path)
 
-    assert len(folder_call_paths) == 2
-    assert tmp_path in folder_call_paths
+    # Root is never passed to classify_folder — only subdirectories are classified.
+    assert len(folder_call_paths) == 1
     assert subdir in folder_call_paths
+    assert tmp_path not in folder_call_paths
 
 
 def test_coordinator_skips_previously_skipped_dirs(tmp_path):

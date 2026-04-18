@@ -61,21 +61,35 @@ class DirectoryCoordinator:
         self.csv_writer = csv_writer
         self.progress = progress
         self.progress_file = progress_file
+        self._root: Path | None = None
 
     def process(self, directory: Path) -> None:
         """Recursively process a directory: classify folder, then files, then subdirs."""
+        # Track the root so we never run the folder agent on it — the user explicitly
+        # chose this path to scan, so it should always be processed regardless of
+        # what the LLM would say about it.
+        if self._root is None:
+            self._root = directory
+
         with tracer.start_as_current_span("directory.process") as span:
             span.set_attribute("directory.path", str(directory))
+            span.set_attribute("directory.is_root", directory == self._root)
 
             # Resume: skip already-classified directories
             if str(directory) in self.progress.skipped_dirs:
                 logger.info(f"Skipping (previously classified): {directory.name}")
                 return
 
-            # Ask folder agent: skip or process?
-            decision = classify_folder(self.folder_agent, directory)
+            # Always process the root — only classify subdirectories.
+            if directory == self._root:
+                logger.info(f"Processing root directory: {directory.name}")
+                decision_skip = False
+            else:
+                # Ask folder agent: skip or process?
+                decision = classify_folder(self.folder_agent, directory)
+                decision_skip = decision.skip
 
-            if decision.skip:
+            if decision_skip:
                 logger.info(f"Skipping folder: {directory.name} — {decision.reason}")
                 self.progress.skipped_dirs.add(str(directory))
                 save_progress(self.progress, self.progress_file)
